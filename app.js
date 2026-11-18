@@ -22,9 +22,29 @@
     try { localStorage.setItem(KEY + '-theme', next); } catch (e) { /* ignore */ }
   });
 
+  /* ---------- Spanish subtitles toggle ---------- */
+  let showTr = true;
+  try { if (localStorage.getItem(KEY + '-tr') === '0') showTr = false; } catch (e) { /* ignore */ }
+  const applyTr = () => {
+    document.documentElement.classList.toggle('no-tr', !showTr);
+    const b = $('#trBtn');
+    b.classList.toggle('on', showTr);
+    b.setAttribute('aria-pressed', String(showTr));
+    b.title = showTr ? 'Ocultar traducción al español' : 'Mostrar traducción al español';
+  };
+  $('#trBtn').addEventListener('click', () => {
+    showTr = !showTr;
+    try { localStorage.setItem(KEY + '-tr', showTr ? '1' : '0'); } catch (e) { /* ignore */ }
+    applyTr();
+  });
+  applyTr();
+
   /* ---------- helpers ---------- */
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const unwrap = s => { s = String(s).trim(); return /^\(.*\)$/s.test(s) ? s.slice(1, -1) : s; };
+  const tr = s => s ? `<span class="tr">(${esc(unwrap(s))})</span>` : '';      // plain-text translation
+  const trH = s => s ? `<span class="tr">(${unwrap(s)})</span>` : '';          // translation that may contain <b>/<i>
   const L = 'ABCDEF';
   const col = id => `style="--c:var(--c-${id})"`;
   const tagHTML = id => `<span class="tag" ${col(id)}>${esc(TOPIC[id].short)}</span>`;
@@ -33,7 +53,7 @@
   function prep(q) {
     const keep = q.fixed || q.o.some(o => KEEP_ORDER.test(o));
     const order = keep ? q.o.map((_, i) => i) : shuffle(q.o.map((_, i) => i));
-    return { q, opts: order.map(i => q.o[i]), correct: order.indexOf(q.a), chosen: null };
+    return { q, opts: order.map(i => q.o[i]), optsEs: order.map(i => (q.o_es || [])[i] || ''), correct: order.indexOf(q.a), chosen: null };
   }
   function record(item) {
     const id = item.q.id;
@@ -66,7 +86,7 @@
     const nq = QUESTIONS.filter(q => q.t === t.id).length;
     return `<div class="card topic-card" ${col(t.id)}>
       <span class="tag" ${col(t.id)}>Tema ${t.n}</span>
-      <h3 style="margin-top:8px">${esc(t.name)}</h3>
+      <h3 style="margin-top:8px">${esc(t.name)}${tr(t.name_es)}</h3>
       <div class="muted small">${esc(t.desc)}</div>
       <div class="progress"><i style="width:${total ? Math.round(done / total * 100) : 0}%"></i></div>
       <div class="muted small">${done}/${total} secciones repasadas · ${nq} preguntas</div>
@@ -138,7 +158,7 @@
     app.innerHTML = `
       <div class="topic-head" ${col(t.id)}>
         <span class="tag">Tema ${t.n} de ${TOPICS.length}</span>
-        <h1>${esc(t.name)}</h1>
+        <h1>${esc(t.name)}${tr(t.name_es)}</h1>
         <p>${esc(t.desc)}</p>
       </div>
       <div class="card" ${col(t.id)}>
@@ -149,7 +169,7 @@
       ${t.sections.map((s, i) => {
         const k = t.id + ':' + i;
         return `<details class="card section" id="sec-${i}" ${col(t.id)} ${i === 0 ? 'open' : ''}>
-          <summary><span class="num">${i + 1}</span><span>${esc(s.title)}</span>${S.read[k] ? '<span class="done-dot" title="Repasado"></span>' : ''}<span class="chev">›</span></summary>
+          <summary><span class="num">${i + 1}</span><span>${esc(s.title)}${tr(s.title_es)}</span>${S.read[k] ? '<span class="done-dot" title="Repasado"></span>' : ''}<span class="chev">›</span></summary>
           <div class="body">${s.body}
             ${s.es ? `<div class="note es">🇪🇸 <b>En simple:</b> ${s.es}</div>` : ''}
             ${s.trap ? `<div class="note trap">🎯 <b>Ojo en el examen:</b> ${s.trap}</div>` : ''}
@@ -181,7 +201,7 @@
       <h1>⚡ Repaso exprés</h1>
       <p class="muted">Lo que más probablemente pregunten, tema por tema. Léelo justo antes del examen.</p>
       ${TOPICS.map(t => `<div class="card cheat" ${col(t.id)} style="border-left:5px solid var(--c)">
-        <h3>${t.n}. ${esc(t.name)}</h3>
+        <h3>${t.n}. ${esc(t.name)}${tr(t.name_es)}</h3>
         <ul>${t.quick.map(x => `<li>${x}</li>`).join('')}</ul>
         <a class="small" href="#review/${t.id}">Ver tema completo →</a>
       </div>`).join('')}
@@ -203,8 +223,8 @@
       <div class="qhead"><span>${tagHTML(c.t)}</span><span>${F.i + 1} / ${F.deck.length}</span></div>
       <div class="flash" id="flash" ${col(c.t)}>
         <div class="flash-inner">
-          <div class="face front"><div class="term">${c.f}</div><div class="hint">Toca para ver la respuesta</div></div>
-          <div class="face back"><div>${c.b}</div></div>
+          <div class="face front"><div class="term">${c.f}</div>${tr(c.f_es)}<div class="hint">Toca para ver la respuesta</div></div>
+          <div class="face back"><div>${c.b}${trH(c.b_es)}</div></div>
         </div>
       </div>
       <div class="flash-nav">
@@ -269,11 +289,11 @@
     app.innerHTML = `
       <div class="qhead"><span>${tagHTML(it.q.t)} ${P.err ? '<span class="tag" style="--c:var(--bad)">Mis errores</span>' : ''}</span><span>${P.i + 1} / ${n}</span></div>
       <div class="progress"><i style="width:${Math.round(P.i / n * 100)}%"></i></div>
-      <div class="qtext">${esc(it.q.q)}</div>
+      <div class="qtext">${esc(it.q.q)}${tr(it.q.q_es)}</div>
       <div class="opts">${it.opts.map((o, j) => {
         let cls = '';
         if (answered) { if (j === it.correct) cls = 'right'; else if (j === it.chosen) cls = 'wrong'; }
-        return `<button class="opt ${cls}" data-j="${j}" ${answered ? 'disabled' : ''}><span class="letter">${L[j]}</span><span>${esc(o)}</span></button>`;
+        return `<button class="opt ${cls}" data-j="${j}" ${answered ? 'disabled' : ''}><span class="letter">${L[j]}</span><span>${esc(o)}${tr(it.optsEs[j])}</span></button>`;
       }).join('')}</div>
       ${answered ? `<div class="feedback ${ok ? 'ok' : 'bad'}"><b class="res">${ok ? '✓ ¡Correcto!' : '✗ Incorrecto — la respuesta es ' + L[it.correct]}</b>${it.q.e}</div>` : ''}
       <div class="quiz-foot">
@@ -314,9 +334,9 @@
     const ok = x.chosen === x.correct;
     return `<div class="card review-item ${ok ? 'r' : 'w'}">
       <div class="qhead"><span>${tagHTML(x.q.t)}</span><span>${typeof k === 'number' ? '#' + (k + 1) : ''}</span></div>
-      <div class="qtext">${esc(x.q.q)}</div>
-      ${x.chosen === null ? '<div class="ans-line w">✗ Sin responder</div>' : ok ? '' : `<div class="ans-line w">✗ Tu respuesta: ${esc(x.opts[x.chosen])}</div>`}
-      <div class="ans-line r">✓ Correcta: ${esc(x.opts[x.correct])}</div>
+      <div class="qtext">${esc(x.q.q)}${tr(x.q.q_es)}</div>
+      ${x.chosen === null ? '<div class="ans-line w">✗ Sin responder</div>' : ok ? '' : `<div class="ans-line w">✗ Tu respuesta: ${esc(x.opts[x.chosen])}${tr(x.optsEs[x.chosen])}</div>`}
+      <div class="ans-line r">✓ Correcta: ${esc(x.opts[x.correct])}${tr(x.optsEs[x.correct])}</div>
       <div class="note es small">${x.q.e}</div>
     </div>`;
   }
@@ -361,6 +381,7 @@
           <li>No ves si acertaste hasta <b>entregar</b>. Puedes cambiar respuestas y marcar 🚩 las dudosas.</li>
           <li>Al terminar: nota sobre 20, resultado por tema y explicación de cada pregunta.</li>
           <li>Cada simulacro sale con preguntas y orden distintos.</li>
+          <li>💡 Para practicar como el examen real (solo inglés), apaga la traducción con el botón <b>ES</b> de arriba.</li>
         </ul>
         <button class="btn primary block" id="eStart">Empezar simulacro (40:00)</button>
       </div>
@@ -380,8 +401,8 @@
       </div>
       <div class="qhead mt"><span>Pregunta ${E.i + 1} de ${n}</span>
         <button class="chip ${E.flags.has(E.i) ? 'on' : ''}" id="eFlag">🚩 ${E.flags.has(E.i) ? 'Marcada' : 'Marcar duda'}</button></div>
-      <div class="qtext">${esc(it.q.q)}</div>
-      <div class="opts">${it.opts.map((o, j) => `<button class="opt ${it.chosen === j ? 'sel' : ''}" data-j="${j}"><span class="letter">${L[j]}</span><span>${esc(o)}</span></button>`).join('')}</div>
+      <div class="qtext">${esc(it.q.q)}${tr(it.q.q_es)}</div>
+      <div class="opts">${it.opts.map((o, j) => `<button class="opt ${it.chosen === j ? 'sel' : ''}" data-j="${j}"><span class="letter">${L[j]}</span><span>${esc(o)}${tr(it.optsEs[j])}</span></button>`).join('')}</div>
       <div class="quiz-foot">
         <button class="btn" id="ePrev" ${E.i === 0 ? 'disabled' : ''}>← Anterior</button>
         ${E.i + 1 < n ? '<button class="btn primary" id="eNext">Siguiente →</button>' : '<button class="btn primary" id="eSubmit2">Entregar ✓</button>'}
